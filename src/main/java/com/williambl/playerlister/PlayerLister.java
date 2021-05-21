@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,12 +49,14 @@ public class PlayerLister {
     }
 
     @SubscribeEvent
-    public void onServerStarting(TickEvent.ServerTickEvent event) throws IOException {
+    public void onServerStarting(TickEvent.ServerTickEvent event) {
         if (ticks++ % Config.CONFIG.refreshTime.get() != 0) return;
 
+        try {
         Path path = FileSystems.getDefault().getPath(Config.CONFIG.outputPath.get());
-        Files.deleteIfExists(path);
-        Files.createFile(path);
+        if (Files.notExists(path)) {
+            Files.createFile(path);
+        }
         try (BufferedWriter writer = Files.newBufferedWriter(path)) {
             server.getPlayerList()
                     .getPlayers()
@@ -67,6 +70,12 @@ public class PlayerLister {
                             LOGGER.error("Failure writing PlayerList: ", e);
                         }
                     });
+        }
+        } catch (FileSystemException e) {
+            LOGGER.info("Skipping writing PlayerList as file could not be accessed - another process is probably using it.");
+            LOGGER.debug(e);
+        } catch (IOException e) {
+            LOGGER.error("Failure writing PlayerList: ", e);
         }
     }
 
